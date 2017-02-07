@@ -35,23 +35,38 @@
 
 #pragma once
 
-#include <list>
+#ifndef Q_MOC_RUN
+#include <obstacle_detector/Obstacles.h>
 
-#include "utilities/point.h"
+#include <OGRE/OgreVector3.h>
+#include <OGRE/OgreSceneNode.h>
+#include <OGRE/OgreSceneManager.h>
 
-namespace obstacle_detector
+#include <rviz/ogre_helpers/line.h>
+#include <rviz/ogre_helpers/billboard_line.h>
+#endif
+
+namespace obstacles_display
 {
 
-typedef std::list<Point>::iterator PointIterator;
-
-class PointSet
+class SegmentVisual
 {
 public:
-  PointSet() { num_points = 0; }
+  SegmentVisual(Ogre::SceneManager* scene_manager, Ogre::SceneNode* parent_node);
 
-  PointIterator begin, end;    // The iterators point to the list of points existing somewhere else
-  int num_points;
+  virtual ~SegmentVisual();
+
+  void setData(const obstacle_detector::SegmentObstacle& segment);
+  void setFramePosition(const Ogre::Vector3& position);
+  void setFrameOrientation(const Ogre::Quaternion& orientation);
+  void setColor(float r, float g, float b, float a);
+  void setWidth(float w);
+
+private:
+  boost::shared_ptr<rviz::BillboardLine> line_;
+
+  Ogre::SceneNode* frame_node_;
+  Ogre::SceneManager* scene_manager_;
 };
 
-} // namespace obstacle_detector
-
+} // end namespace obstacles_display

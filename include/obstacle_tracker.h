@@ -50,11 +50,14 @@ namespace obstacle_detector
 
 class ObstacleTracker {
 public:
-  ObstacleTracker();
+  ObstacleTracker(ros::NodeHandle& nh, ros::NodeHandle& nh_local);
 
 private:
   bool updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-  void obstaclesCallback(const Obstacles::ConstPtr& new_obstacles);
+  void timerCallback(const ros::TimerEvent&);
+  void obstaclesCallback(const obstacle_detector::Obstacles::ConstPtr new_obstacles);
+
+  void initialize() { std_srvs::Empty empt; updateParams(empt.request, empt.response); }
 
   double obstacleCostFunction(const CircleObstacle& new_obstacle, const CircleObstacle& old_obstacle);
   void calculateCostMatrix(const std::vector<CircleObstacle>& new_obstacles, arma::mat& cost_matrix);
@@ -80,10 +83,9 @@ private:
   ros::Subscriber obstacles_sub_;
   ros::Publisher obstacles_pub_;
   ros::ServiceServer params_srv_;
+  ros::Timer timer_;
 
-  ros::Rate rate_;
-
-  Obstacles obstacles_msg_;
+  obstacle_detector::Obstacles obstacles_;
 
   std::vector<TrackedObstacle> tracked_obstacles_;
   std::vector<CircleObstacle> untracked_obstacles_;
@@ -94,6 +96,8 @@ private:
 
   double p_tracking_duration_;
   double p_loop_rate_;
+  double p_sampling_time_;
+  double p_sensor_rate_;
   double p_min_correspondence_cost_;
   double p_std_correspondence_dev_;
   double p_process_variance_;
@@ -101,4 +105,4 @@ private:
   double p_measurement_variance_;
 };
 
-}
+} // namespace obstacle_detector

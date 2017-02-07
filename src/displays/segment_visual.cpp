@@ -33,25 +33,44 @@
  * Author: Mateusz Przybyla
  */
 
-#pragma once
+#include "displays/segment_visual.h"
 
-#include <list>
-
-#include "utilities/point.h"
-
-namespace obstacle_detector
+namespace obstacles_display
 {
 
-typedef std::list<Point>::iterator PointIterator;
+SegmentVisual::SegmentVisual(Ogre::SceneManager* scene_manager, Ogre::SceneNode* parent_node) {
+  scene_manager_ = scene_manager;
+  frame_node_ = parent_node->createChildSceneNode();
 
-class PointSet
-{
-public:
-  PointSet() { num_points = 0; }
+  line_.reset(new rviz::BillboardLine(scene_manager_, frame_node_));
+}
 
-  PointIterator begin, end;    // The iterators point to the list of points existing somewhere else
-  int num_points;
-};
+SegmentVisual::~SegmentVisual() {
+  scene_manager_->destroySceneNode(frame_node_);
+}
 
-} // namespace obstacle_detector
+void SegmentVisual::setData(const obstacle_detector::SegmentObstacle& segment) {
+  Ogre::Vector3 p1(segment.first_point.x, segment.first_point.y, 0.0);
+  Ogre::Vector3 p2(segment.last_point.x, segment.last_point.y, 0.0);
+  line_->addPoint(p1);
+  line_->addPoint(p2);
+}
+
+void SegmentVisual::setFramePosition(const Ogre::Vector3& position) {
+  frame_node_->setPosition(position);
+}
+
+void SegmentVisual::setFrameOrientation(const Ogre::Quaternion& orientation) {
+  frame_node_->setOrientation(orientation);
+}
+
+void SegmentVisual::setColor(float r, float g, float b, float a) {
+  line_->setColor(r, g, b, a);
+}
+
+void SegmentVisual::setWidth(float w) {
+  line_->setLineWidth(w);
+}
+
+} // end namespace obstacles_display
 

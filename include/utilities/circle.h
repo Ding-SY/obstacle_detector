@@ -35,23 +35,35 @@
 
 #pragma once
 
-#include <list>
-
 #include "utilities/point.h"
+#include "utilities/segment.h"
 
 namespace obstacle_detector
 {
 
-typedef std::list<Point>::iterator PointIterator;
-
-class PointSet
+class Circle
 {
 public:
-  PointSet() { num_points = 0; }
+  Circle(const Point& p = Point(), const double r = 0.0) : center(p), radius(r) { }
 
-  PointIterator begin, end;    // The iterators point to the list of points existing somewhere else
-  int num_points;
+  /*
+   * Create a circle by taking the segment as a base of equilateral
+   * triangle. The circle is circumscribed on this triangle.
+   */
+  Circle(const Segment& s) {
+    radius = 0.5773502 * s.length();  // sqrt(3)/3 * length
+    center = (s.first_point + s.last_point - radius * s.normal()) / 2.0;
+    point_sets = s.point_sets;
+  }
+
+  double distanceTo(const Point& p) { return (p - center).length() - radius; }
+
+  friend std::ostream& operator<<(std::ostream& out, const Circle& c)
+  { out << "C: " << c.center << ", R: " << c.radius; return out; }
+
+  Point center;
+  double radius;
+  std::vector<PointSet> point_sets;
 };
 
 } // namespace obstacle_detector
-

@@ -33,25 +33,17 @@
  * Author: Mateusz Przybyla
  */
 
-#pragma once
+#include "obstacle_recorder.h"
 
-#include <list>
+using namespace obstacle_detector;
 
-#include "utilities/point.h"
+int main(int argc, char** argv) {
+  ros::init(argc, argv, "obstacle_recorder", ros::init_options::NoRosout);
+  ros::NodeHandle nh;
+  ros::NodeHandle nh_local("~");
+  ObstacleRecorder orec(nh, nh_local);
 
-namespace obstacle_detector
-{
+  ros::spin();
 
-typedef std::list<Point>::iterator PointIterator;
-
-class PointSet
-{
-public:
-  PointSet() { num_points = 0; }
-
-  PointIterator begin, end;    // The iterators point to the list of points existing somewhere else
-  int num_points;
-};
-
-} // namespace obstacle_detector
-
+  return 0;
+}

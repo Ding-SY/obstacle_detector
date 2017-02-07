@@ -37,8 +37,8 @@
 
 #include <vector>
 
-#include "point.h"
-#include "../utilities/point_set.h"
+#include "utilities/point.h"
+#include "utilities/point_set.h"
 
 namespace obstacle_detector
 {

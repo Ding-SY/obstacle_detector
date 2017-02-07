@@ -1,46 +1,66 @@
-#include "../include/obstacle_tracker.h"
+/*
+ * Software License Agreement (BSD License)
+ *
+ * Copyright (c) 2015, Poznan University of Technology
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the Willow Garage, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived from
+ *       this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * Author: Mateusz Przybyla
+ */
+
+#include "obstacle_tracker.h"
 
 using namespace obstacle_detector;
 using namespace arma;
 using namespace std;
 
-int main(int argc, char** argv) {
-  ros::init(argc, argv, "obstacle_tracker");
-  ObstacleTracker ot;
-  return 0;
-}
+ObstacleTracker::ObstacleTracker(ros::NodeHandle& nh, ros::NodeHandle& nh_local) : nh_(nh), nh_local_(nh_local) {
+  p_active_ = false;
 
-ObstacleTracker::ObstacleTracker() : nh_(""), nh_local_("~"), rate_(5.0), p_active_(false) {
-  std_srvs::Empty empty;
-  updateParams(empty.request, empty.response);
+  timer_ = nh_.createTimer(ros::Duration(1.0), &ObstacleTracker::timerCallback, this, false, false);
   params_srv_ = nh_local_.advertiseService("params", &ObstacleTracker::updateParams, this);
+  initialize();
 
-  {
-    ROS_INFO("Obstacle Tracker [Waiting for first message]");
+//  {
+//    ROS_INFO("Obstacle Tracker [Waiting for first message]");
 
-    boost::shared_ptr<Obstacles const> msg_ptr;
-    msg_ptr = ros::topic::waitForMessage<Obstacles>("raw_obstacles", ros::Duration(10));
+//    boost::shared_ptr<Obstacles const> msg_ptr;
+//    msg_ptr = ros::topic::waitForMessage<Obstacles>("raw_obstacles", ros::Duration(5.0));
 
-    if (msg_ptr == nullptr) {
-      ROS_INFO("Obstacle Tracker [ERROR: Didn't receive any message. Falling into sleep mode.]");
-      nh_local_.setParam("active", false);
-      std_srvs::Empty empty;
-      updateParams(empty.request, empty.response);
-    }
-    else
-      ROS_INFO("Obstacle Tracker [First message received]");
-  }
-
-  while (ros::ok()) {
-    ros::spinOnce();
-
-    if (p_active_) {
-      updateObstacles();
-      publishObstacles();
-    }
-
-    rate_.sleep();
-  }
+//    if (msg_ptr == nullptr) {
+//      ROS_INFO("Obstacle Tracker [ERROR: Didn't receive any message. Falling into sleep mode.]");
+//      nh_local_.setParam("active", false);
+//      std_srvs::Empty empty;
+//      updateParams(empty.request, empty.response);
+//    }
+//    else
+//      ROS_INFO("Obstacle Tracker [First message received]");
+//  }
 }
 
 bool ObstacleTracker::updateParams(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
@@ -50,6 +70,9 @@ bool ObstacleTracker::updateParams(std_srvs::Empty::Request &req, std_srvs::Empt
   nh_local_.param<bool>("copy_segments", p_copy_segments_, true);
 
   nh_local_.param<double>("loop_rate", p_loop_rate_, 100.0);
+  p_sampling_time_ = 1.0 / p_loop_rate_;
+  p_sensor_rate_ = 10.0;    // 10 Hz for Hokuyo
+
   nh_local_.param<double>("tracking_duration", p_tracking_duration_, 2.0);
   nh_local_.param<double>("min_correspondence_cost", p_min_correspondence_cost_, 0.3);
   nh_local_.param<double>("std_correspondence_dev", p_std_correspondence_dev_, 0.15);
@@ -57,36 +80,43 @@ bool ObstacleTracker::updateParams(std_srvs::Empty::Request &req, std_srvs::Empt
   nh_local_.param<double>("process_rate_variance", p_process_rate_variance_, 0.1);
   nh_local_.param<double>("measurement_variance", p_measurement_variance_, 1.0);
 
-  TrackedObstacle::setSamplingTime(1.0 / p_loop_rate_);
+  TrackedObstacle::setSamplingTime(p_sampling_time_);
   TrackedObstacle::setCounterSize(static_cast<int>(p_loop_rate_ * p_tracking_duration_));
   TrackedObstacle::setCovariances(p_process_variance_, p_process_rate_variance_, p_measurement_variance_);
+
+  timer_.setPeriod(ros::Duration(p_sampling_time_), false);
 
   if (p_active_ != prev_active) {
     if (p_active_) {
       obstacles_sub_ = nh_.subscribe("raw_obstacles", 10, &ObstacleTracker::obstaclesCallback, this);
-      obstacles_pub_ = nh_.advertise<Obstacles>("tracked_obstacles", 10);
-      rate_ = ros::Rate(p_loop_rate_);
-
-      ROS_INFO("Obstacle Tracker [ACTIVE]");
+      obstacles_pub_ = nh_.advertise<obstacle_detector::Obstacles>("tracked_obstacles", 10);
+      timer_.start();
     }
     else {
       obstacles_sub_.shutdown();
       obstacles_pub_.shutdown();
-      rate_ = ros::Rate(5.0);
 
-      ROS_INFO("Obstacle Tracker [OFF]");
+      tracked_obstacles_.clear();
+      untracked_obstacles_.clear();
+
+      timer_.stop();
     }
   }
 
   return true;
 }
 
-void ObstacleTracker::obstaclesCallback(const Obstacles::ConstPtr& new_obstacles) {
-  obstacles_msg_.header.frame_id = new_obstacles->header.frame_id;
+void ObstacleTracker::timerCallback(const ros::TimerEvent&) {
+  updateObstacles();
+  publishObstacles();
+}
+
+void ObstacleTracker::obstaclesCallback(const obstacle_detector::Obstacles::ConstPtr new_obstacles) {
+  obstacles_.header.frame_id = new_obstacles->header.frame_id;
 
   if (p_copy_segments_) {
-    obstacles_msg_.segments.clear();
-    obstacles_msg_.segments.assign(new_obstacles->segments.begin(), new_obstacles->segments.end());
+    obstacles_.segments.clear();
+    obstacles_.segments.assign(new_obstacles->segments.begin(), new_obstacles->segments.end());
   }
 
   int N = new_obstacles->circles.size();
@@ -171,9 +201,8 @@ void ObstacleTracker::obstaclesCallback(const Obstacles::ConstPtr& new_obstacles
       }
       else if (row_min_indices[n] >= T) {
         TrackedObstacle to(untracked_obstacles_[row_min_indices[n] - T]);
-        to.assignId();
         to.correctState(new_obstacles->circles[n]);
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < static_cast<int>(p_loop_rate_ / p_sensor_rate_); ++i)
           to.updateState();
 
         new_tracked_obstacles.push_back(to);
@@ -202,7 +231,7 @@ double ObstacleTracker::obstacleCostFunction(const CircleObstacle& new_obstacle,
 
   double cost = 0.0;
   double penalty = 1.0;
-  double tp = 0.1;
+  double tp = 1.0 / p_sensor_rate_;
 
   double direction = atan2(old_obstacle.velocity.y, old_obstacle.velocity.x);
 
@@ -385,8 +414,6 @@ void ObstacleTracker::fuseObstacles(const vector<int>& fusion_indices, const vec
     sum_var_vx += 1.0 / tracked_obstacles_[idx].getKFx().P(1,1);
     sum_var_vy += 1.0 / tracked_obstacles_[idx].getKFy().P(1,1);
     sum_var_r += 1.0 / tracked_obstacles_[idx].getKFr().P(0,0);
-
-    c.obstacle_id += tracked_obstacles_[idx].getObstacle().obstacle_id + "-";
   }
 
   c.center.x /= sum_var_x;
@@ -394,13 +421,11 @@ void ObstacleTracker::fuseObstacles(const vector<int>& fusion_indices, const vec
   c.velocity.x /= sum_var_vx;
   c.velocity.y /= sum_var_vy;
   c.radius /= sum_var_r;
-
-  c.obstacle_id.pop_back(); // Remove last "-"
+  c.true_radius = c.radius - tracked_obstacles_[0].getMargin();
 
   TrackedObstacle to(c);
-  to.assignId();
   to.correctState(new_obstacles->circles[col_min_indices[fusion_indices.front()]]);
-  for (int i = 0; i < 10; ++i)
+  for (int i = 0; i < static_cast<int>(p_loop_rate_ / p_sensor_rate_); ++i)
     to.updateState();
 
   new_tracked.push_back(to);
@@ -408,14 +433,11 @@ void ObstacleTracker::fuseObstacles(const vector<int>& fusion_indices, const vec
 
 void ObstacleTracker::fissureObstacle(const vector<int>& fission_indices, const vector<int>& row_min_indices,
                                       vector<TrackedObstacle>& new_tracked, const Obstacles::ConstPtr& new_obstacles) {
-  tracked_obstacles_[row_min_indices[fission_indices.front()]].releaseId();
-
   // For each new obstacle taking part in fission create a tracked obstacle from the original old one and update it with the new one
   for (int idx : fission_indices) {
     TrackedObstacle to = tracked_obstacles_[row_min_indices[idx]];
-    to.assignId();
     to.correctState(new_obstacles->circles[idx]);
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < static_cast<int>(p_loop_rate_ / p_sensor_rate_); ++i)
       to.updateState();
 
     new_tracked.push_back(to);
@@ -426,29 +448,29 @@ void ObstacleTracker::updateObstacles() {
   for (int i = 0; i < tracked_obstacles_.size(); ++i) {
     if (!tracked_obstacles_[i].hasFaded())
       tracked_obstacles_[i].updateState();
-    else {
-      tracked_obstacles_[i].releaseId();
+    else
       tracked_obstacles_.erase(tracked_obstacles_.begin() + i--);
-    }
   }
 }
 
 void ObstacleTracker::publishObstacles() {
-  obstacles_msg_.header.stamp = ros::Time::now();
-  obstacles_msg_.circles.clear();
+  obstacle_detector::ObstaclesPtr obstacles_msg(new obstacle_detector::Obstacles);
+
+  obstacles_.circles.clear();
 
   for (auto tracked_obstacle : tracked_obstacles_)
-    obstacles_msg_.circles.push_back(tracked_obstacle.getObstacle());
+    obstacles_.circles.push_back(tracked_obstacle.getObstacle());
 
   for (auto untracked_obstacle : untracked_obstacles_)
-    obstacles_msg_.circles.push_back(untracked_obstacle);
+    obstacles_.circles.push_back(untracked_obstacle);
 
-  obstacles_pub_.publish(obstacles_msg_);
+  *obstacles_msg = obstacles_;
+  obstacles_msg->header.stamp = ros::Time::now();
+
+  obstacles_pub_.publish(obstacles_msg);
 }
 
 // Ugly initialization of static members of tracked obstacles...
-list<string> TrackedObstacle::s_id_bank_         = {};
-int    TrackedObstacle::s_id_size_               = 0;
 int    TrackedObstacle::s_fade_counter_size_     = 0;
 double TrackedObstacle::s_sampling_time_         = 100.0;
 double TrackedObstacle::s_process_variance_      = 0.0;

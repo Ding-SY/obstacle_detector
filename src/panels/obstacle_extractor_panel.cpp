@@ -33,12 +33,12 @@
  * Author: Mateusz Przybyla
  */
 
-#include "../include/panels/obstacle_detector_panel.h"
+#include "panels/obstacle_extractor_panel.h"
 
 using namespace obstacle_detector;
 using namespace std;
 
-ObstacleDetectorPanel::ObstacleDetectorPanel(QWidget* parent) : rviz::Panel(parent), nh_(""), nh_local_("obstacle_detector") {
+ObstacleExtractorPanel::ObstacleExtractorPanel(QWidget* parent) : rviz::Panel(parent), nh_(""), nh_local_("obstacle_extractor") {
   params_cli_ = nh_local_.serviceClient<std_srvs::Empty>("params");
   getParams();
 
@@ -165,14 +165,14 @@ ObstacleDetectorPanel::ObstacleDetectorPanel(QWidget* parent) : rviz::Panel(pare
   evaluateParams();
 }
 
-void ObstacleDetectorPanel::processInputs() {
+void ObstacleExtractorPanel::processInputs() {
   verifyInputs();
   setParams();
   evaluateParams();
   notifyParamsUpdate();
 }
 
-void ObstacleDetectorPanel::verifyInputs() {
+void ObstacleExtractorPanel::verifyInputs() {
   p_active_ = activate_checkbox_->isChecked();
   p_use_scan_ = use_scan_checkbox_->isChecked();
   p_use_pcl_ = use_pcl_checkbox_->isChecked();
@@ -208,7 +208,7 @@ void ObstacleDetectorPanel::verifyInputs() {
   p_frame_id_ = frame_id_input_->text().toStdString();
 }
 
-void ObstacleDetectorPanel::setParams() {
+void ObstacleExtractorPanel::setParams() {
   nh_local_.setParam("min_group_points", p_min_group_points_);
 
   nh_local_.setParam("active", p_active_);
@@ -230,7 +230,7 @@ void ObstacleDetectorPanel::setParams() {
   nh_local_.setParam("frame_id", p_frame_id_);
 }
 
-void ObstacleDetectorPanel::getParams() {
+void ObstacleExtractorPanel::getParams() {
   nh_local_.param<int>("min_group_points", p_min_group_points_, 5);
 
   nh_local_.param<bool>("active", p_active_, true);
@@ -251,7 +251,7 @@ void ObstacleDetectorPanel::getParams() {
   nh_local_.param<string>("frame_id", p_frame_id_, "world");
 }
 
-void ObstacleDetectorPanel::evaluateParams() {
+void ObstacleExtractorPanel::evaluateParams() {
   activate_checkbox_->setChecked(p_active_);
 
   use_scan_checkbox_->setEnabled(p_active_);
@@ -297,7 +297,7 @@ void ObstacleDetectorPanel::evaluateParams() {
   frame_id_input_->setText(QString::fromStdString(p_frame_id_));
 }
 
-void ObstacleDetectorPanel::notifyParamsUpdate() {
+void ObstacleExtractorPanel::notifyParamsUpdate() {
   std_srvs::Empty empty;
   if (!params_cli_.call(empty)) {
     p_active_ = false;
@@ -306,13 +306,13 @@ void ObstacleDetectorPanel::notifyParamsUpdate() {
   }
 }
 
-void ObstacleDetectorPanel::save(rviz::Config config) const {
+void ObstacleExtractorPanel::save(rviz::Config config) const {
   rviz::Panel::save(config);
 }
 
-void ObstacleDetectorPanel::load(const rviz::Config& config) {
+void ObstacleExtractorPanel::load(const rviz::Config& config) {
   rviz::Panel::load(config);
 }
 
 #include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(obstacle_detector::ObstacleDetectorPanel, rviz::Panel)
+PLUGINLIB_EXPORT_CLASS(obstacle_detector::ObstacleExtractorPanel, rviz::Panel)

@@ -49,11 +49,13 @@ namespace obstacle_detector
 class ObstacleRecorder
 {
 public:
-  ObstacleRecorder();
+  ObstacleRecorder(ros::NodeHandle &nh, ros::NodeHandle &nh_local);
 
 private:
   bool updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-  void obstaclesCallback(const Obstacles::ConstPtr& obstacles);
+  void obstaclesCallback(const Obstacles::ConstPtr obstacles);
+
+  void initialize() { std_srvs::Empty empt; updateParams(empt.request, empt.response); }
 
   void prepareFile();
 
@@ -71,12 +73,7 @@ private:
   bool p_active_;
   bool p_recording_;
 
-  double p_min_x_limit_;
-  double p_max_x_limit_;
-  double p_min_y_limit_;
-  double p_max_y_limit_;
-
   std::string p_filename_prefix_;
 };
 
-}
+} // namespace obstacle_detector

@@ -33,50 +33,31 @@
  * Author: Mateusz Przybyla
  */
 
-#pragma once
+#include <memory>
+#include <nodelet/nodelet.h>
 
-#include <ros/ros.h>
-#include <std_srvs/Empty.h>
-#include <obstacle_detector/Obstacles.h>
-#include <visualization_msgs/MarkerArray.h>
+#include "obstacle_publisher.h"
 
 namespace obstacle_detector
 {
 
-class ObstacleVisualizer
+class ObstaclePublisherNodelet : public nodelet::Nodelet
 {
 public:
-  ObstacleVisualizer();
+  virtual void onInit() {
+    NODELET_INFO("Initializing Obstacle Publisher Nodelet");
+
+    ros::NodeHandle nh = getNodeHandle();
+    ros::NodeHandle nh_local = getPrivateNodeHandle();
+
+    obstacle_publisher_ = std::shared_ptr<ObstaclePublisher>(new ObstaclePublisher(nh, nh_local));
+  }
 
 private:
-  bool updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-  void obstaclesCallback(const Obstacles::ConstPtr& obstacles);
-
-  void setColor(std_msgs::ColorRGBA& color, int color_code, float alpha);
-
-  ros::NodeHandle nh_;
-  ros::NodeHandle nh_local_;
-
-  ros::Subscriber obstacles_sub_;
-  ros::Publisher markers_pub_;
-  ros::ServiceServer params_srv_;
-
-  std_msgs::ColorRGBA tracked_circles_color_;
-  std_msgs::ColorRGBA untracked_circles_color_;
-  std_msgs::ColorRGBA segments_color_;
-  std_msgs::ColorRGBA text_color_;
-
-  // Parameters
-  bool p_active_;
-  bool p_show_labels_;
-
-  int p_tracked_circles_color_;
-  int p_untracked_circles_color_;
-  int p_segments_color_;
-  int p_text_color_;
-
-  double p_alpha_;
-  double p_z_layer_;
+  std::shared_ptr<ObstaclePublisher> obstacle_publisher_;
 };
 
-}
+} // namespace obstacle_detector
+
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(obstacle_detector::ObstaclePublisherNodelet, nodelet::Nodelet)

@@ -44,9 +44,8 @@ namespace obstacle_detector
 class TrackedObstacle {
 public:
   TrackedObstacle(const CircleObstacle& obstacle) : obstacle_(obstacle), kf_x_(0, 1, 2), kf_y_(0, 1, 2), kf_r_(0, 1, 2) {
-    obstacle_.tracked = true;
     fade_counter_ = s_fade_counter_size_;
-
+    margin_ = obstacle_.radius - obstacle_.true_radius;
     initKF();
   }
 
@@ -62,6 +61,7 @@ public:
     obstacle_.velocity.y = kf_y_.q_pred(1);
 
     obstacle_.radius = kf_r_.q_pred(0);
+    obstacle_.true_radius = obstacle_.radius - margin_;
 
     fade_counter_--;
   }
@@ -82,6 +82,7 @@ public:
     obstacle_.velocity.y = kf_y_.q_est(1);
 
     obstacle_.radius = kf_r_.q_est(0);
+    obstacle_.true_radius = obstacle_.radius - margin_;
 
     fade_counter_ = s_fade_counter_size_;
   }
@@ -102,42 +103,9 @@ public:
     obstacle_.velocity.y = kf_y_.q_est(1);
 
     obstacle_.radius = kf_r_.q_est(0);
+    obstacle_.true_radius = obstacle_.radius - margin_;
 
     fade_counter_--;
-  }
-
-  void assignId() {
-    if (obstacle_.obstacle_id == "") {
-      if (s_id_bank_.size() == 0)
-        reserveNewIdsInBank(10);
-
-      id_list.push_back(s_id_bank_.front());
-      s_id_bank_.pop_front();
-      obstacle_.obstacle_id = id_list.back();
-    }
-    else {
-      size_t prev_pos = 0;
-      size_t pos = obstacle_.obstacle_id.find("O", 0);
-
-      while (pos != std::string::npos) {
-        pos = obstacle_.obstacle_id.find("O", pos + 1);
-        id_list.push_back(obstacle_.obstacle_id.substr(prev_pos, pos - prev_pos - 1));
-        prev_pos = pos;
-      }
-    }
-  }
-
-  void releaseId() {
-    s_id_bank_.insert(s_id_bank_.begin(), id_list.begin(), id_list.end());
-    id_list.clear();
-    obstacle_.obstacle_id = "";
-  }
-
-  static void reserveNewIdsInBank(int num) {
-    for (int i = 1; i < num + 1; ++i)
-      s_id_bank_.push_back("O" + std::to_string(i + s_id_size_));
-
-    s_id_size_ += num;
   }
 
   static void setSamplingTime(double tp) {
@@ -155,12 +123,11 @@ public:
   }
 
   bool hasFaded() const { return ((fade_counter_ <= 0) ? true : false); }
+  double getMargin() const { return margin_; }
   const CircleObstacle& getObstacle() const { return obstacle_; }
   const KalmanFilter& getKFx() const { return kf_x_; }
   const KalmanFilter& getKFy() const { return kf_y_; }
   const KalmanFilter& getKFr() const { return kf_r_; }
-
-  std::list<std::string> id_list;
 
 private:
   void initKF() {
@@ -200,6 +167,7 @@ private:
   }
 
   CircleObstacle obstacle_;
+  double margin_;
 
   KalmanFilter kf_x_;
   KalmanFilter kf_y_;
@@ -208,10 +176,7 @@ private:
   int fade_counter_;
 
   // Common variables
-  static std::list<std::string> s_id_bank_;
-  static int s_id_size_;
   static int s_fade_counter_size_;
-
   static double s_sampling_time_;
   static double s_process_variance_;
   static double s_process_rate_variance_;

@@ -33,25 +33,31 @@
  * Author: Mateusz Przybyla
  */
 
-#pragma once
+#include <memory>
+#include <nodelet/nodelet.h>
 
-#include <list>
-
-#include "utilities/point.h"
+#include "obstacle_extractor.h"
 
 namespace obstacle_detector
 {
 
-typedef std::list<Point>::iterator PointIterator;
-
-class PointSet
+class ObstacleExtractorNodelet : public nodelet::Nodelet
 {
 public:
-  PointSet() { num_points = 0; }
+  virtual void onInit() {
+    NODELET_INFO("Initializing Obstacle Extractor Nodelet");
 
-  PointIterator begin, end;    // The iterators point to the list of points existing somewhere else
-  int num_points;
+    ros::NodeHandle nh = getNodeHandle();
+    ros::NodeHandle nh_local = getPrivateNodeHandle();
+
+    obstacle_extractor_ = std::shared_ptr<ObstacleExtractor>(new ObstacleExtractor(nh, nh_local));
+  }
+
+private:
+  std::shared_ptr<ObstacleExtractor> obstacle_extractor_;
 };
 
 } // namespace obstacle_detector
 
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(obstacle_detector::ObstacleExtractorNodelet, nodelet::Nodelet)

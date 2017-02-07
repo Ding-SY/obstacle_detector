@@ -39,31 +39,32 @@
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Point32.h>
 
+#include "utilities/point.h"
+
 namespace obstacle_detector
 {
 
-double signum(double x) { return (x < 0.0) ? -1.0 : 1.0; }
-double abs(double x) { return (x < 0.0) ? -x : x; }
-double max(double x, double y) { return (x > y) ? x : y; }
-const double pi = 3.14159265;
+inline double signum(double x) { return (x < 0.0) ? -1.0 : 1.0; }
+inline double abs(double x) { return (x < 0.0) ? -x : x; }
+inline double max(double x, double y) { return (x > y) ? x : y; }
 
-double length(const geometry_msgs::Point& point) {
+inline double length(const geometry_msgs::Point& point) {
   return sqrt(point.x * point.x + point.y * point.y);
 }
 
-double squaredLength(const geometry_msgs::Point& point) {
+inline double squaredLength(const geometry_msgs::Point& point) {
   return point.x * point.x + point.y * point.y;
 }
 
-double length(const geometry_msgs::Vector3& vec) {
+inline double length(const geometry_msgs::Vector3& vec) {
   return sqrt(vec.x * vec.x + vec.y * vec.y);
 }
 
-double squaredLength(const geometry_msgs::Vector3& vec) {
+inline double squaredLength(const geometry_msgs::Vector3& vec) {
   return vec.x * vec.x + vec.y * vec.y;
 }
 
-geometry_msgs::Point transformPoint(const geometry_msgs::Point& point, double x, double y, double theta) {
+inline geometry_msgs::Point transformPoint(const geometry_msgs::Point& point, double x, double y, double theta) {
   geometry_msgs::Point p;
 
   p.x = point.x * cos(theta) - point.y * sin(theta) + x;
@@ -72,7 +73,7 @@ geometry_msgs::Point transformPoint(const geometry_msgs::Point& point, double x,
   return p;
 }
 
-geometry_msgs::Point32 transformPoint(const geometry_msgs::Point32& point, double x, double y, double theta) {
+inline geometry_msgs::Point32 transformPoint(const geometry_msgs::Point32& point, double x, double y, double theta) {
   geometry_msgs::Point32 p;
 
   p.x = point.x * cos(theta) - point.y * sin(theta) + x;
@@ -81,11 +82,20 @@ geometry_msgs::Point32 transformPoint(const geometry_msgs::Point32& point, doubl
   return p;
 }
 
-bool checkPointInLimits(const geometry_msgs::Point32& p, double x_min, double x_max, double y_min, double y_max) {
+inline Point transformPoint(const Point point, double x, double y, double theta) {
+  Point p;
+
+  p.x = point.x * cos(theta) - point.y * sin(theta) + x;
+  p.y = point.x * sin(theta) + point.y * cos(theta) + y;
+
+  return p;
+}
+
+inline bool checkPointInLimits(const geometry_msgs::Point32& p, double x_min, double x_max, double y_min, double y_max) {
   if ((p.x > x_max) || (p.x < x_min) || (p.y > y_max) || (p.y < y_min))
     return false;
   else
     return true;
 }
 
-}
+} // namespace obstacle_detector

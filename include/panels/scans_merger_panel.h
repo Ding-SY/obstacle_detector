@@ -108,4 +108,4 @@ private:
   std::string p_frame_id_;
 };
 
-}
+} // namespace obstacle_detector

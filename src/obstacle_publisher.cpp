@@ -33,52 +33,24 @@
  * Author: Mateusz Przybyla
  */
 
-#include "../include/obstacle_publisher.h"
+#include "obstacle_publisher.h"
 
 using namespace std;
 using namespace obstacle_detector;
 
-int main(int argc, char** argv) {
-  ros::init(argc, argv, "obstacle_publisher");
-  ObstaclePublisher op;
-  return 0;
-}
-
-ObstaclePublisher::ObstaclePublisher() : nh_(""), nh_local_("~"), rate_(5.0), p_active_(false) {
-  std_srvs::Empty empty;
-  updateParams(empty.request, empty.response);
-  params_srv_ = nh_local_.advertiseService("params", &ObstaclePublisher::updateParams, this);
-
-  tic_ = ros::Time::now();
+ObstaclePublisher::ObstaclePublisher(ros::NodeHandle& nh, ros::NodeHandle& nh_local) : nh_(nh), nh_local_(nh_local) {
+  p_active_ = false;
   t_ = 0.0;
 
-  while (ros::ok()) {
-    ros::spinOnce();
-
-    if (p_active_) {
-      toc_ = ros::Time::now();
-      double dt = (toc_ - tic_).toSec();
-      t_ += dt;
-      tic_ = toc_;
-
-      calculateObstaclesPositions(dt);
-
-      if (p_fusion_example_)
-        fusionExample(t_);
-      else if (p_fission_example_)
-        fissionExample(t_);
-
-      publishObstacles();
-    }
-
-    rate_.sleep();
-  }
+  timer_ = nh_.createTimer(ros::Duration(1.0), &ObstaclePublisher::timerCallback, this, false, false);
+  params_srv_ = nh_local_.advertiseService("params", &ObstaclePublisher::updateParams, this);
+  initialize();
 }
 
 bool ObstaclePublisher::updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res) {
   bool prev_active = p_active_;
 
-  nh_local_.param<bool>("active", p_active_, true);
+  nh_local_.param<bool>("active", p_active_, false);
   nh_local_.param<bool>("reset", p_reset_, false);
   nh_local_.param<bool>("fusion_example", p_fusion_example_, false);
   nh_local_.param<bool>("fission_example", p_fission_example_, false);
@@ -94,16 +66,17 @@ bool ObstaclePublisher::updateParams(std_srvs::Empty::Request& req, std_srvs::Em
 
   nh_local_.getParam("frame_id", p_frame_id_);
 
+  p_sampling_time_ = 1.0 / p_loop_rate_;
+  timer_.setPeriod(ros::Duration(p_sampling_time_), false);
+
   if (p_active_ != prev_active) {
     if (p_active_) {
-      obstacle_pub_ = nh_.advertise<Obstacles>("obstacles", 10);
-      rate_ = ros::Rate(p_loop_rate_);
-      ROS_INFO("Obstacle Publisher [ACTIVE]");
+      obstacle_pub_ = nh_.advertise<obstacle_detector::Obstacles>("obstacles", 10);
+      timer_.start();
     }
     else {
       obstacle_pub_.shutdown();
-      rate_ = ros::Rate(5.0);
-      ROS_INFO("Obstacle Publisher [OFF]");
+      timer_.stop();
     }
   }
 
@@ -119,6 +92,7 @@ bool ObstaclePublisher::updateParams(std_srvs::Empty::Request& req, std_srvs::Em
     circle.center.x = p_x_vector_[idx];
     circle.center.y = p_y_vector_[idx];
     circle.radius = p_r_vector_[idx];
+    circle.true_radius = p_r_vector_[idx];
 
     circle.velocity.x = p_vx_vector_[idx];
     circle.velocity.y = p_vy_vector_[idx];
@@ -130,6 +104,19 @@ bool ObstaclePublisher::updateParams(std_srvs::Empty::Request& req, std_srvs::Em
     reset();
 
   return true;
+}
+
+void ObstaclePublisher::timerCallback(const ros::TimerEvent& e) {
+  t_ += p_sampling_time_;
+
+  calculateObstaclesPositions(p_sampling_time_);
+
+  if (p_fusion_example_)
+    fusionExample(t_);
+  else if (p_fission_example_)
+    fissionExample(t_);
+
+  publishObstacles();
 }
 
 void ObstaclePublisher::calculateObstaclesPositions(double dt) {
@@ -165,6 +152,9 @@ void ObstaclePublisher::fusionExample(double t) {
   }
   else  if (t > 20.0)
     reset();
+
+  circ1.true_radius = circ1.radius;
+  circ2.true_radius = circ2.radius;
 }
 
 void ObstaclePublisher::fissionExample(double t) {
@@ -200,11 +190,17 @@ void ObstaclePublisher::fissionExample(double t) {
   }
   else if (t > 20.0)
     reset();
+
+  circ1.true_radius = circ1.radius;
+  circ2.true_radius = circ2.radius;
 }
 
 void ObstaclePublisher::publishObstacles() {
-  obstacles_.header.stamp = ros::Time::now();
-  obstacle_pub_.publish(obstacles_);
+  obstacle_detector::ObstaclesPtr obstacles_msg(new obstacle_detector::Obstacles);
+  *obstacles_msg = obstacles_;
+
+  obstacles_msg->header.stamp = ros::Time::now();
+  obstacle_pub_.publish(obstacles_msg);
 }
 
 void ObstaclePublisher::reset() {

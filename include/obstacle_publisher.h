@@ -45,12 +45,15 @@ namespace obstacle_detector
 class ObstaclePublisher
 {
 public:
-  ObstaclePublisher();
+  ObstaclePublisher(ros::NodeHandle &nh, ros::NodeHandle &nh_local);
 
 private:
   bool updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+  void timerCallback(const ros::TimerEvent& e);
 
-  void calculateObstaclesPositions(double t);
+  void initialize() { std_srvs::Empty empt; updateParams(empt.request, empt.response); }
+
+  void calculateObstaclesPositions(double dt);
   void fusionExample(double t);
   void fissionExample(double t);
   void publishObstacles();
@@ -61,10 +64,9 @@ private:
 
   ros::Publisher obstacle_pub_;
   ros::ServiceServer params_srv_;
+  ros::Timer timer_;
 
-  Obstacles obstacles_;
-  ros::Time tic_, toc_;
-  ros::Rate rate_;
+  obstacle_detector::Obstacles obstacles_;
   double t_;
 
   // Parameters
@@ -74,6 +76,7 @@ private:
   bool p_fission_example_;
 
   double p_loop_rate_;
+  double p_sampling_time_;
 
   std::vector<double> p_x_vector_;
   std::vector<double> p_y_vector_;
@@ -85,4 +88,4 @@ private:
   std::string p_frame_id_;
 };
 
-}
+} // namespace obstacle_detector

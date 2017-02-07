@@ -33,87 +33,31 @@
  * Author: Mateusz Przybyla
  */
 
-#pragma once
+#include <memory>
+#include <nodelet/nodelet.h>
 
-#include <ros/ros.h>
-#include <rviz/panel.h>
-#include <std_srvs/Empty.h>
-
-#include <QLabel>
-#include <QFrame>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QGroupBox>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
+#include "obstacle_tracker.h"
 
 namespace obstacle_detector
 {
 
-class ObstacleDetectorPanel : public rviz::Panel
+class ObstacleTrackerNodelet : public nodelet::Nodelet
 {
-Q_OBJECT
 public:
-  ObstacleDetectorPanel(QWidget* parent = 0);
+  virtual void onInit() {
+    NODELET_INFO("Initializing Obstacle Tracker Nodelet");
 
-  virtual void load(const rviz::Config& config);
-  virtual void save(rviz::Config config) const;
+    ros::NodeHandle nh = getNodeHandle();
+    ros::NodeHandle nh_local = getPrivateNodeHandle();
 
-private Q_SLOTS:
-  void processInputs();
-
-private:
-  void verifyInputs();
-  void setParams();
-  void getParams();
-  void evaluateParams();
-  void notifyParamsUpdate();
+    obstacle_tracker_ = std::shared_ptr<ObstacleTracker>(new ObstacleTracker(nh, nh_local));
+  }
 
 private:
-  QCheckBox* activate_checkbox_;
-  QCheckBox* use_scan_checkbox_;
-  QCheckBox* use_pcl_checkbox_;
-  QCheckBox* use_split_merge_checkbox_;
-  QCheckBox* discard_segments_checkbox_;
-  QCheckBox* transform_coords_checkbox_;
-
-  QLineEdit* min_n_input_;
-  QLineEdit* dist_prop_input_;
-  QLineEdit* group_dist_input_;
-  QLineEdit* split_dist_input_;
-  QLineEdit* merge_sep_input_;
-  QLineEdit* merge_spread_input_;
-  QLineEdit* max_radius_input_;
-  QLineEdit* radius_enl_input_;
-  QLineEdit* frame_id_input_;
-
-  ros::NodeHandle nh_;
-  ros::NodeHandle nh_local_;
-
-  ros::ServiceClient params_cli_;
-
-  // Parameters
-  int p_min_group_points_;
-
-  bool p_active_;
-  bool p_use_scan_;
-  bool p_use_pcl_;
-  bool p_use_split_and_merge_;
-  bool p_discard_converted_segments_;
-  bool p_transform_coordinates_;
-
-  double p_distance_proportion_;
-  double p_max_group_distance_;
-
-  double p_max_split_distance_;
-  double p_max_merge_separation_;
-  double p_max_merge_spread_;
-  double p_max_circle_radius_;
-  double p_radius_enlargement_;
-
-  std::string p_frame_id_;
+  std::shared_ptr<ObstacleTracker> obstacle_tracker_;
 };
 
-}
+} // namespace obstacle_detector
+
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(obstacle_detector::ObstacleTrackerNodelet, nodelet::Nodelet)

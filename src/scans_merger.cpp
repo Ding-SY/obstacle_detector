@@ -33,21 +33,14 @@
  * Author: Mateusz Przybyla
  */
 
-#include "../include/scans_merger.h"
+#include "scans_merger.h"
+#include "utilities/math_utilities.h"
 
 using namespace obstacle_detector;
 using namespace std;
 
-int main(int argc, char** argv) {
-  ros::init(argc, argv, "scans_merger");
-  ScansMerger SM;
-  return 0;
-}
-
-ScansMerger::ScansMerger() : nh_(""), nh_local_("~"), p_active_(false) {
-  std_srvs::Empty empty;
-  updateParams(empty.request, empty.response);
-  params_srv_ = nh_local_.advertiseService("params", &ScansMerger::updateParams, this);
+ScansMerger::ScansMerger(ros::NodeHandle& nh, ros::NodeHandle& nh_local) : nh_(nh), nh_local_(nh_local) {
+  p_active_ = false;
 
   front_scan_received_ = false;
   rear_scan_received_ = false;
@@ -55,7 +48,8 @@ ScansMerger::ScansMerger() : nh_(""), nh_local_("~"), p_active_(false) {
   front_scan_error_ = false;
   rear_scan_error_ = false;
 
-  ros::spin();
+  params_srv_ = nh_local_.advertiseService("params", &ScansMerger::updateParams, this);
+  initialize();
 }
 
 bool ScansMerger::updateParams(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
@@ -63,7 +57,7 @@ bool ScansMerger::updateParams(std_srvs::Empty::Request &req, std_srvs::Empty::R
 
   nh_local_.param<bool>("active", p_active_, true);
   nh_local_.param<bool>("publish_scan", p_publish_scan_, true);
-  nh_local_.param<bool>("publish_pcl", p_publish_pcl_, true);
+  nh_local_.param<bool>("publish_pcl", p_publish_pcl_, false);
 
   nh_local_.param<int>("ranges_num", p_ranges_num_, 1000);
 
@@ -80,26 +74,21 @@ bool ScansMerger::updateParams(std_srvs::Empty::Request &req, std_srvs::Empty::R
     if (p_active_) {
       front_scan_sub_ = nh_.subscribe("front_scan", 10, &ScansMerger::frontScanCallback, this);
       rear_scan_sub_ = nh_.subscribe("rear_scan", 10, &ScansMerger::rearScanCallback, this);
-
       scan_pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10);
       pcl_pub_ = nh_.advertise<sensor_msgs::PointCloud>("pcl", 10);
-
-      ROS_INFO("Scans Merger [ACTIVE]");
     }
     else {
       front_scan_sub_.shutdown();
       rear_scan_sub_.shutdown();
       scan_pub_.shutdown();
       pcl_pub_.shutdown();
-
-      ROS_INFO("Scans Merger [OFF]");
     }
   }
 
   return true;
 }
 
-void ScansMerger::frontScanCallback(const sensor_msgs::LaserScan::ConstPtr& front_scan) {
+void ScansMerger::frontScanCallback(const sensor_msgs::LaserScan::ConstPtr front_scan) {
   geometry_msgs::Point32 local_point, base_point;
   tf::StampedTransform transform;
 
@@ -140,7 +129,7 @@ void ScansMerger::frontScanCallback(const sensor_msgs::LaserScan::ConstPtr& fron
     rear_scan_error_ = true;
 }
 
-void ScansMerger::rearScanCallback(const sensor_msgs::LaserScan::ConstPtr& rear_scan) {
+void ScansMerger::rearScanCallback(const sensor_msgs::LaserScan::ConstPtr rear_scan) {
   geometry_msgs::Point32 local_point, base_point;
   tf::StampedTransform transform;
 
@@ -182,17 +171,17 @@ void ScansMerger::rearScanCallback(const sensor_msgs::LaserScan::ConstPtr& rear_
 }
 
 void ScansMerger::publishScan() {
-  sensor_msgs::LaserScan laser_scan;
+  sensor_msgs::LaserScanPtr scan_msg(new sensor_msgs::LaserScan);
 
-  laser_scan.header.frame_id = p_frame_id_;
-  laser_scan.header.stamp = ros::Time::now();
-  laser_scan.angle_min = -M_PI;
-  laser_scan.angle_max = M_PI;
-  laser_scan.angle_increment = 2.0 * M_PI / p_ranges_num_;
-  laser_scan.time_increment = 0.0;
-  laser_scan.scan_time = 0.1;
-  laser_scan.range_min = p_min_scanner_range_;
-  laser_scan.range_max = p_max_scanner_range_;
+  scan_msg->header.frame_id = p_frame_id_;
+  scan_msg->header.stamp = ros::Time::now();
+  scan_msg->angle_min = -M_PI;
+  scan_msg->angle_max = M_PI;
+  scan_msg->angle_increment = 2.0 * M_PI / p_ranges_num_;
+  scan_msg->time_increment = 0.0;
+  scan_msg->scan_time = 0.1;
+  scan_msg->range_min = p_min_scanner_range_;
+  scan_msg->range_max = p_max_scanner_range_;
 
   ranges_.assign(p_ranges_num_, 1000.0f);
 
@@ -210,19 +199,19 @@ void ScansMerger::publishScan() {
     if (ranges_[jdx] < p_min_scanner_range_ || ranges_[jdx] > p_max_scanner_range_)
       ranges_[jdx] = nan("");
 
-  laser_scan.ranges = ranges_;
+  scan_msg->ranges = ranges_;
 
-  scan_pub_.publish(laser_scan);
+  scan_pub_.publish(scan_msg);
 }
 
 void ScansMerger::publishPCL() {
-  sensor_msgs::PointCloud pcl;
+  sensor_msgs::PointCloudPtr pcl_msg(new sensor_msgs::PointCloud);
 
-  pcl.header.frame_id = p_frame_id_;
-  pcl.header.stamp = ros::Time::now();
-  pcl.points = points_;
+  pcl_msg->header.frame_id = p_frame_id_;
+  pcl_msg->header.stamp = ros::Time::now();
+  pcl_msg->points = points_;
 
-  pcl_pub_.publish(pcl);
+  pcl_pub_.publish(pcl_msg);
 }
 
 void ScansMerger::publishAll() {

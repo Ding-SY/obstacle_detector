@@ -36,63 +36,67 @@
 #pragma once
 
 #include <ros/ros.h>
-#include <tf/transform_listener.h>
+#include <rviz/panel.h>
 #include <std_srvs/Empty.h>
-#include <sensor_msgs/LaserScan.h>
-#include <sensor_msgs/PointCloud.h>
-#include <obstacle_detector/Obstacles.h>
 
-#include "figures/point.h"
-#include "figures/segment.h"
-#include "figures/circle.h"
-
-#include "utilities/figure_fitting.h"
-#include "utilities/math_utilities.h"
-#include "utilities/point_set.h"
+#include <QLabel>
+#include <QFrame>
+#include <QCheckBox>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QGroupBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
 
 namespace obstacle_detector
 {
 
-class ObstacleDetector
+class ObstacleExtractorPanel : public rviz::Panel
 {
+Q_OBJECT
 public:
-  ObstacleDetector();
+  ObstacleExtractorPanel(QWidget* parent = 0);
+
+  virtual void load(const rviz::Config& config);
+  virtual void save(rviz::Config config) const;
+
+private Q_SLOTS:
+  void processInputs();
 
 private:
-  bool updateParams(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-  void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
-  void pclCallback(const sensor_msgs::PointCloud::ConstPtr& pcl);
+  void verifyInputs();
+  void setParams();
+  void getParams();
+  void evaluateParams();
+  void notifyParamsUpdate();
 
-  void processPoints();
-  void groupPoints();
-  void publishObstacles();
+private:
+  QCheckBox* activate_checkbox_;
+  QCheckBox* use_scan_checkbox_;
+  QCheckBox* use_pcl_checkbox_;
+  QCheckBox* use_split_merge_checkbox_;
+  QCheckBox* discard_segments_checkbox_;
+  QCheckBox* transform_coords_checkbox_;
 
-  void detectSegments(const PointSet& point_set);
-  void mergeSegments();
-  bool compareSegments(const Segment& s1, const Segment& s2, Segment& merged_segment);
-  bool checkSegmentsProximity(const Segment& s1, const Segment& s2);
-  bool checkSegmentsCollinearity(const Segment& segment, const Segment& s1, const Segment& s2);
-
-  void detectCircles();
-  void mergeCircles();
-  bool compareCircles(const Circle& c1, const Circle& c2, Circle& merged_circle);
+  QLineEdit* min_n_input_;
+  QLineEdit* dist_prop_input_;
+  QLineEdit* group_dist_input_;
+  QLineEdit* split_dist_input_;
+  QLineEdit* merge_sep_input_;
+  QLineEdit* merge_spread_input_;
+  QLineEdit* max_radius_input_;
+  QLineEdit* radius_enl_input_;
+  QLineEdit* frame_id_input_;
 
   ros::NodeHandle nh_;
   ros::NodeHandle nh_local_;
 
-  ros::Subscriber scan_sub_;
-  ros::Subscriber pcl_sub_;
-  ros::Publisher obstacles_pub_;
-  ros::ServiceServer params_srv_;
-
-  std::string base_frame_id_;
-  tf::TransformListener tf_listener_;
-
-  std::list<Point> input_points_;
-  std::list<Segment> segments_;
-  std::list<Circle> circles_;
+  ros::ServiceClient params_cli_;
 
   // Parameters
+  int p_min_group_points_;
+
   bool p_active_;
   bool p_use_scan_;
   bool p_use_pcl_;
@@ -100,10 +104,9 @@ private:
   bool p_discard_converted_segments_;
   bool p_transform_coordinates_;
 
-  int p_min_group_points_;
-
   double p_distance_proportion_;
   double p_max_group_distance_;
+
   double p_max_split_distance_;
   double p_max_merge_separation_;
   double p_max_merge_spread_;
@@ -113,4 +116,4 @@ private:
   std::string p_frame_id_;
 };
 
-}
+} // namespace obstacle_detector

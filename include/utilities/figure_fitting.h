@@ -37,9 +37,9 @@
 
 #include <armadillo>
 
-#include "../figures/point.h"
-#include "../figures/segment.h"
-#include "../figures/circle.h"
+#include "utilities/point.h"
+#include "utilities/segment.h"
+#include "utilities/circle.h"
 
 namespace obstacle_detector
 {

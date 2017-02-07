@@ -33,7 +33,7 @@
  * Author: Mateusz Przybyla
  */
 
-#include "../include/panels/scans_merger_panel.h"
+#include "panels/scans_merger_panel.h"
 
 using namespace obstacle_detector;
 using namespace std;
