@@ -12,15 +12,15 @@ The package requires [Armadillo C++](http://arma.sourceforge.net) library for co
 </p>
 -----------------------
 
-1. The nodes and nodelets
-  1.1 The scans_merger 
-  1.2 The obstacle_extractor 
-  1.3 The obstacle_tracker 
-  1.4 The obstacle_publisher 
-  1.5 The obstacle_recorder 
+1. The nodes and nodelets  
+   1.1. The scans_merger  
+   1.2. The obstacle_extractor  
+   1.3. The obstacle_tracker  
+   1.4. The obstacle_publisher  
+   1.5. The obstacle_recorder    
 2. The messages
 3. Launch files
-4. The displays
+4. The displays 
 
 ## 1. The nodes and nodelets
 
